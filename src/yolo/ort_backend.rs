@@ -47,9 +47,16 @@ impl Default for Batch {
 #[derive(Debug, Default)]
 pub struct OrtInputs {
     // ONNX model inputs attrs
+    // 这是一个二维向量，用于存储模型输入的形状。
+    // 每个输入的形状都是一个一维向量，其中的元素是输入的维度大小。
     pub shapes: Vec<Vec<i32>>,
+    // 这是一个一维向量，用于存储模型输入的数据类型。
+    // 每个输入都有一个对应的数据类型
     pub dtypes: Vec<TensorElementDataType>,
+    // 这是一个一维向量，用于存储模型输入的名称。每个输入都有一个对应的名称
     pub names: Vec<String>,
+    // 这是一个二维向量，用于存储模型输入的大小。
+    // 每个输入的大小都是一个一维向量，其中的元素是输入的维度大小。
     pub sizes: Vec<Vec<u32>>,
 }
 
@@ -91,9 +98,19 @@ pub struct OrtConfig {
 pub struct OrtBackend {
     // ORT engine
     session: Session,
+    // 这是一个 YOLOTask 枚举类型的字段，
+    // 表示了当前的任务类型。
+    // YOLOTask 可以是 Classify、Detect、Pose 或 Segment 中的一种，
+    // 分别对应分类、检测、姿态估计和分割四种任务
     task: YOLOTask,
+    // 这是一个 OrtEP 枚举类型的字段，
+    // 表示了 ONNX Runtime 的执行提供者（Execution Provider）。
+    // 执行提供者决定了模型在哪种硬件（如 CPU、CUDA、TensorRT、OpenVINO 或 CoreML）上运行。
     ep: OrtEP,
+    // 这是一个 Batch 结构体类型的字段，包含了批处理的相关配置，如批处理的大小。
     batch: Batch,
+    // 这是一个 OrtInputs 结构体类型的字段，
+    // 包含了模型输入的相关信息，如输入的形状、数据类型和名称
     inputs: OrtInputs,
 }
 

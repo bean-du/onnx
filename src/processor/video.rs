@@ -17,7 +17,6 @@ use crate::yolo::cli::default_args;
 use crate::yolo::model::YOLOv8;
 use crate::yolo::{check_font, SKELETON};
 use rayon::prelude::*;
-use photon_rs::PhotonImage;
 
 
 // VideoProcessor is responsible for processing video streams
@@ -140,28 +139,7 @@ impl VideoProcessor {
     pub async fn process_frame(&mut self, frame: Arc<Mutex<Mat>>) -> anyhow::Result<Mat> {
         let mut mat = frame.lock().unwrap().clone();
         let result = self.model.run_video_frame(Arc::new(mat.clone()))?;
-        info!("Detect Result: {:?}", result);
-
-        let t_plot = std::time::Instant::now();
-        // self.model.plot_and_save(&result, &vec![img], Some(&SKELETON))?;
-        let font = check_font("./Arial.ttf");
-
-        let frame = self.model.plot(&font,&result[0], &mut mat, Some(&SKELETON))?;
-
-
-        // self.model.save(img.clone(), "./runs".to_string())?;
-        println!("[Image plot Preprocess]: {:?}", t_plot.elapsed());
-
-        // let t_post = std::time::Instant::now();
-        // let f = self.transform_img_to_frame(&img)?;
-        // println!("[Image  PostTransform]: {:?}", t_post.elapsed());
-
-        // Lock the mutex before using VideoWriter
-        // if let Some(writer) = &self.video_writer {
-        //     let mut writer = writer.lock().unwrap();
-        //     writer.write(&frame)?;
-        // }
-        return Ok(frame.clone());
+        return Ok(result.clone());
     }
 
 

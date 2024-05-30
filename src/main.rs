@@ -1,29 +1,29 @@
-use onnx::server;
-use onnx::processor;
-use onnx::tasks;
-use onnx::yolo;
+use pineal::server;
+use pineal::processor;
+use pineal::tasks;
+use pineal::yolo;
 use tokio;
-use onnx::subscribe;
+use pineal::subscribe;
 use std::sync::{Arc, Mutex};
 use std::any::Any;
 use std::ops::Deref;
 use anyhow::{anyhow, Result};
 use opencv::{highgui, videoio, prelude::*};
 use opencv::core::Mat;
-use onnx::utils::logger;
+use pineal::utils::logger;
 
 use tracing::{info, error};
 use tracing::instrument;
-use onnx::tasks::mock_get_task;
+use pineal::tasks::mock_get_task;
 use tokio::signal;
 use tokio::sync::mpsc;
-use onnx::BUS;
-use onnx::processor::manager::ProcessorsManager;
+use pineal::BUS;
+use pineal::processor::manager::ProcessorsManager;
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let _guard = logger::init("../logs".into())?;
-    info!("Starting the Onnx");
+    info!("Starting the pineal");
     // // 0. listen NATS's topic(jetStream) and get task from NATS. save the task to the memory or database
     // tasks::listen_topic()?;
     //
@@ -81,6 +81,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                 info!("Received Ctrl-C signal");
                 break;
             }
+            
             frame = rx.recv() => {
                 if let Some(f) = frame {
                     show_frame(f)?;
@@ -89,7 +90,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         }
     }
 
-    info!("Onnx application shutdown successfully");
+    info!("pineal application shutdown successfully");
 
     Ok(())
 }

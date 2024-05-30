@@ -13,7 +13,7 @@ pub fn init(dir: String) -> Result<WorkerGuard> {
         .with_writer(std::io::stdout);
 
     // output to file
-    let file_appender = rolling::hourly(dir, "downow.log");
+    let file_appender = rolling::hourly(dir, "onnx_log");
     let (non_blocking, _guard) = non_blocking(file_appender);
 
     let file_layer = fmt::layer()
@@ -23,7 +23,7 @@ pub fn init(dir: String) -> Result<WorkerGuard> {
         .with_writer(non_blocking);
 
     let collector = tracing_subscriber::registry()
-        .with(EnvFilter::from_default_env().add_directive(tracing::Level::DEBUG.into()))
+        .with(EnvFilter::from_default_env().add_directive(tracing::Level::INFO.into()))
         .with(formatting_layer)
         .with(file_layer);
 

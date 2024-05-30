@@ -6,9 +6,11 @@ pub mod cli;
 pub mod model;
 pub mod ort_backend;
 pub mod yolo_result;
+pub mod ort;
+
 pub use cli::Args;
 pub use model::YOLOv8;
-pub use ort_backend::{Batch, OrtBackend, OrtConfig, OrtEP, YOLOTask};
+pub use ort::{OrtBackend, OrtConfig, OrtEP, YOLOTask};
 pub use yolo_result::{Bbox, Embedding, Point2, YOLOResult};
 
 pub fn non_max_suppression(
