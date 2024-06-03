@@ -186,13 +186,16 @@ impl YOLOv8 {
         let w = mat.cols();
         let h = mat.rows();
 
+        println!("[-----------------Start Recording-----------------]");
+
         let t_pre = std::time::Instant::now();
-        let data = self.pre_process(&mat)?;
+        let data = self.engine.pre_process(&mat)?;
         let model_input = ort_2::Tensor::from_array(data)?;
         if self.profile {
-            println!("[Frame Preprocess]: {:?}", t_pre.elapsed());
+            println!("[Preprocess]: {:?}", t_pre.elapsed());
         }
 
+        let rt_pre = std::time::Instant::now();
         // 执行推理
         // 调用 YOLOv8::run 方法，传入 ndarray::Array 对象，返回一个 Result 类型，包含一个 YOLOResult 类型的向量
         let ys = match self.engine.run(model_input) {
@@ -202,18 +205,24 @@ impl YOLOv8 {
                 return Err(e);
             }
         };
-
+        if self.profile {
+            println!("[Frame Inference]: {:?}", rt_pre.elapsed());
+        }
 
         // 后处理检测结果
         let t_post = std::time::Instant::now();
-        let results = self.engine.postprocess(ys, w as f32, h as f32, 640., 0.5);
+        let results = self.engine.postprocess(ys, w as f32, h as f32, 640., 0.3);
         if self.profile {
-            println!("[Inference Postprocess]: {:?}", t_post.elapsed());
+            println!("[Postprocess]: {:?}", t_post.elapsed());
         }
 
         let t_plot = std::time::Instant::now();
         let img = self.engine.plot(results, &mut mat)?;
         println!("[Image plot Preprocess]: {:?}", t_plot.elapsed());
+        println!("[Total Time]: {:?}", t_pre.elapsed());
+
+        println!("[-----------------End Recording-----------------]\n");
+
 
         // println!("[Per image at shape: (1, 3, {:?}, {})]", self.height(), self.width());
         // info!(" <[Result]> {:?}", ys);
