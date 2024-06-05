@@ -28,6 +28,7 @@ image = { version = "0.24.7", default-features = false, features = ["jpeg", "png
 imageproc = { version = "0.23.0", default-features = false }
 rand = "0.8.5"
 rayon = "1.10.0"
+flamegraph = "0.6.5"
 
 [dependencies.ort_2]
 package = "ort"

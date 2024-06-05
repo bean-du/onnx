@@ -39,7 +39,7 @@ pub fn listen_topic() -> Result<(), Error> {
     Ok(())
 }
 
-pub fn mock_get_task() -> Task {
+pub fn mock_task() -> Task {
     Task {
         id: "1".to_string(),
         status: "running".to_string(),

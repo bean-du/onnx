@@ -14,16 +14,18 @@ use pineal::utils::logger;
 
 use tracing::{info, error};
 use tracing::instrument;
-use pineal::tasks::mock_get_task;
+use pineal::tasks::mock_task;
 use tokio::signal;
 use tokio::sync::mpsc;
 use pineal::BUS;
 use pineal::processor::manager::ProcessorsManager;
+use flamegraph;
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let _guard = logger::init("../logs".into())?;
     info!("Starting the pineal");
+
     // // 0. listen NATS's topic(jetStream) and get task from NATS. save the task to the memory or database
     // tasks::listen_topic()?;
     //
@@ -66,7 +68,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     let mut p = ProcessorsManager::new();
 
-    let task = tasks::mock_get_task();
+    let task = tasks::mock_task();
 
     let window = "Video AI";
     highgui::named_window(window, highgui::WINDOW_AUTOSIZE)?;
@@ -85,6 +87,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
             frame = rx.recv() => {
                 if let Some(f) = frame {
                     show_frame(f)?;
+
                 }
             }
         }

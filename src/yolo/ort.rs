@@ -126,13 +126,12 @@ impl OrtBackend {
 
         ort_2::init().
             with_execution_providers([ep.clone()])
-            .commit().unwrap();
+            .commit()?;
 
         info!("Init Env With Execution Provider: {:?} Success", ep.as_str());
 
         let session = Session::builder()?
-            .commit_from_file(config.model_file.clone())
-            .unwrap();
+            .commit_from_file(config.model_file.clone())?;
 
         info!("Load Model File: {:?} Success", config.model_file);
 
@@ -224,9 +223,9 @@ impl OrtBackend {
 
 
         let mut model_input = Array4::<f32>::zeros((1, 3, 640, 640));
-        model_input.slice_mut(s![0, 0, .., ..]).assign(&Array2::from_shape_vec((640, 640), b).unwrap());
-        model_input.slice_mut(s![0, 1, .., ..]).assign(&Array2::from_shape_vec((640, 640), g).unwrap());
-        model_input.slice_mut(s![0, 2, .., ..]).assign(&Array2::from_shape_vec((640, 640), r).unwrap());
+        model_input.slice_mut(s![0, 0, .., ..]).assign(&Array2::from_shape_vec((640, 640), b)?);
+        model_input.slice_mut(s![0, 1, .., ..]).assign(&Array2::from_shape_vec((640, 640), g)?);
+        model_input.slice_mut(s![0, 2, .., ..]).assign(&Array2::from_shape_vec((640, 640), r)?);
 
         model_input /= 255.0;
 
@@ -246,13 +245,16 @@ impl OrtBackend {
         // Draw bounding boxes
         let red_color = opencv::core::Scalar::new(0., 0., 255.0, 0.);
         for bb in results {
-            let w = bb.0.x2 - bb.0.x1;
-            let h = bb.0.y2 - bb.0.y1;
+            let x = if bb.0.x1 < 0. { 0 as f32 } else { bb.0.x1  };
+            let y = if bb.0.y1 < 30. { 30  as f32} else { bb.0.y1 };
+
+            let w = bb.0.x2 - x;
+            let h = bb.0.y2 - y;
             imgproc::rectangle(
                 &mut img,
                 opencv::core::Rect::new(
-                    bb.0.x1 as i32, // x center
-                    bb.0.y1 as i32, // y center
+                    x as i32, // x center
+                    y as i32, // y center
                     w as i32,
                     h as i32,
                 ),
@@ -269,7 +271,7 @@ impl OrtBackend {
                 &text,
                 point,
                 imgproc::INTER_LINEAR,
-                3.0,
+                2.0,
                 opencv::core::Scalar::new(0., 255., 0., 0.),
                 2,
                 imgproc::LINE_8,

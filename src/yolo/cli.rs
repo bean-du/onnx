@@ -96,14 +96,13 @@ pub struct Args {
 
 pub fn default_args() -> Args {
     Args {
-        // model: "yolov5s.onnx".to_string(),
         model: "./yolov8n.onnx".to_string(),
         device_id: 0,
         batch: 1,
         task: Some(YOLOTask::Detect),
-        cuda: true,
+        cuda: false,
         open_vino: false,
-        core_ml: false,
+        core_ml: true,
         profile: true,
         ..Args::default()
     }

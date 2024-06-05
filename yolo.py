@@ -5,7 +5,7 @@ from ultralytics import YOLO
 model = YOLO('yolov8n.pt')
 
 # Open the video file
-video_path = "rtsp://192.168.10.55:8554/zlm/001"
+video_path = "rtsp://192.168.2.202:8554/zlm/001"
 # video_path = "./test/qizai.mp4"
 cap = cv2.VideoCapture(video_path)
 

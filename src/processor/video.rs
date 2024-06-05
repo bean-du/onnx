@@ -46,7 +46,7 @@ impl VideoProcessor {
         let build_info = opencv::core::get_build_information().unwrap();
         info!("opencl enabled: {}", have_opencl().unwrap());
 
-        info!("OpenCV build info: {}", build_info);
+        // info!("OpenCV build info: {}", build_info);
         // Open the video stream
         let mut video = if task.addr.is_empty() {
             videoio::VideoCapture::new(0, videoio::CAP_ANY)?
@@ -91,47 +91,49 @@ impl VideoProcessor {
                 let mut frame = Mat::default();
                 video.lock().unwrap().read(&mut frame).unwrap();
                 select! {
-                _ = c1.recv() => {
-                    break;
-                }
-                res = tx_frames.send(Arc::new(Mutex::new(frame))) => {
-                    match res {
-                        Ok(_) => {}
-                        Err(e) => {
-                            error!("Send frame to channel error: {}", e);
-                            break;
+                    _ = c1.recv() => {
+                        break;
+                    }
+                    res = tx_frames.send(Arc::new(Mutex::new(frame))) => {
+                        match res {
+                            Ok(_) => {
+                                info!("Send frame to channel success time: {:?} ", chrono::Local::now().time())
+                            }
+                            Err(e) => {
+                                error!("Send frame to channel error: {}", e);
+                                break;
+                            }
                         }
                     }
                 }
-            }
             }
         });
 
         loop {
             select! {
-            _ = c2.recv() => {
-                break;
-            }
-            Some(frame) = rx_frames.recv() => {
-                // 在这里调用我们的新的 process_frame 函数
-                let result = self.process_frame(frame.clone());
-                match result.await {
-                    Ok(frame) => {
-                        if let  Some(tx) = &tx {
-                            // show the video stream in a window
-                            let f = Arc::new(Mutex::new(frame.clone()));
-                            tx.send(f).await?;
+                _ = c2.recv() => {
+                    break;
+                }
+                Some(frame) = rx_frames.recv() => {
+                    info!("Frame buffer lens: {:?}", rx_frames.len());
+                    let result = self.process_frame(frame.clone());
+                    match result.await {
+                        Ok(frame) => {
+                            if let  Some(tx) = &tx {
+                                // send the video stream to the window channel
+                                let f = Arc::new(Mutex::new(frame.clone()));
+                                tx.send(f).await?;
 
+                            }
+                        }
+                        Err(e) => {
+                            error!("Error: {}", e);
+                            return Err(e);
                         }
                     }
-                    Err(e) => {
-                        error!("Error: {}", e);
-                        return Err(e);
-                    }
+                    continue;
                 }
-                continue;
             }
-        }
         }
         Ok(())
     }
@@ -140,63 +142,5 @@ impl VideoProcessor {
         let mut mat = frame.lock().unwrap().clone();
         let result = self.model.run_video_frame(Arc::new(mat.clone()))?;
         return Ok(result.clone());
-    }
-
-
-    pub fn transform_frame_to_img(&self, frame: &Mat) -> Result<DynamicImage, Error> {
-        let mut channel: opencv::core::Vector<opencv::core::Mat> = opencv::core::Vector::new();
-        split(&frame, &mut channel)?;
-
-        let data_b = channel.get(0)?;
-        let data_g = channel.get(1)?;
-        let data_r = channel.get(2)?;
-
-        let mut data = Vec::with_capacity((frame.cols() * frame.rows() * 3) as usize);
-        for y in 0..frame.rows() {
-            for x in 0..frame.cols() {
-                let b = *data_b.at_2d::<u8>(y, x)?;
-                let g = *data_g.at_2d::<u8>(y, x)?;
-                let r = *data_r.at_2d::<u8>(y, x)?;
-                data.push(r);
-                data.push(g);
-                data.push(b);
-            }
-        }
-
-        let img_buffer = image::ImageBuffer::from_raw(frame.cols() as u32, frame.rows() as u32, data)
-            .ok_or_else(|| anyhow::anyhow!("can not create image from ndarray"))?;
-
-
-        Ok(DynamicImage::ImageRgb8(img_buffer))
-    }
-
-    pub fn transform_img_to_frame(&self, img: &DynamicImage) -> Result<Mat, Error> {
-        let rgb_img = img.to_rgb8();
-        let (w, h) = rgb_img.dimensions();
-
-        let mut r_c = vec![0; (w * h) as usize];
-        let mut g_c = vec![0; (w * h) as usize];
-        let mut b_c = vec![0; (w * h) as usize];
-
-        for (x, y, pixel) in rgb_img.enumerate_pixels() {
-            let index = (y * w + x) as usize;
-            r_c[index] = pixel[0];
-            g_c[index] = pixel[1];
-            b_c[index] = pixel[2];
-        }
-
-        let r_mat = Mat::from_slice_2d(&r_c.chunks(w as usize).collect::<Vec<_>>())?;
-        let g_mat = Mat::from_slice_2d(&g_c.chunks(w as usize).collect::<Vec<_>>())?;
-        let b_mat = Mat::from_slice_2d(&b_c.chunks(w as usize).collect::<Vec<_>>())?;
-
-
-        let mut v_frame = VectorOfMat::new();
-        v_frame.push(b_mat);
-        v_frame.push(g_mat);
-        v_frame.push(r_mat);
-
-        let mut frame = Mat::default();
-        opencv::core::merge(&v_frame, &mut frame)?;
-        Ok(frame)
     }
 }

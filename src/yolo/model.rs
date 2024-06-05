@@ -143,18 +143,19 @@ impl YOLOv8 {
             _ => imgproc::INTER_LINEAR,
         };
         let mut resized_frame = Mat::default();
-        // resize img to 640 * 640
+
+        // resize image to 640 * 640
         imgproc::resize(
             &img,
             &mut resized_frame,
-            opencv::core::Size::new(640 as i32, 640 as i32),
+            opencv::core::Size::new(self.width as i32, self.height as i32),
             0.0,
             0.0,
             interpolation,
         )?;
 
         let mut dst = Mat::default();
-        imgproc::cvt_color(&img, &mut dst, COLOR_BGR2RGB, 0)?;
+        imgproc::cvt_color(&resized_frame, &mut dst, COLOR_BGR2RGB, 0).unwrap();
 
         let mut converted_mat = Mat::default();
         dst.convert_to(&mut converted_mat, CV_32FC1, 1.0, 0.0)?;
@@ -162,18 +163,16 @@ impl YOLOv8 {
         let mut channels: opencv::core::Vector<Mat> = opencv::core::Vector::new();
         split(&converted_mat, &mut channels)?;
 
-
         let b = channels.get(0)?.data_typed::<f32>()?.to_vec();
         let g = channels.get(1)?.data_typed::<f32>()?.to_vec();
         let r = channels.get(2)?.data_typed::<f32>()?.to_vec();
 
-
-        let w = self.width() as Ix;
-        let h = self.height() as Ix;
-        let mut model_input = ArrayD::<f32>::zeros(IxDyn(&[1, 3, 640, 640]));
-        model_input.slice_mut(s![0, 0, .., ..]).assign(&Array2::from_shape_vec((640, 640), b)?);
-        model_input.slice_mut(s![0, 1, .., ..]).assign(&Array2::from_shape_vec((640, 640), g)?);
-        model_input.slice_mut(s![0, 2, .., ..]).assign(&Array2::from_shape_vec((640, 640), r)?);
+        let w = self.width as Ix;
+        let h = self.height as Ix;
+        let mut model_input = ArrayD::<f32>::zeros(IxDyn(&[1, 3, w, h]));
+        model_input.slice_mut(s![0, 0, .., ..]).assign(&Array2::from_shape_vec((w, h), b).unwrap());
+        model_input.slice_mut(s![0, 1, .., ..]).assign(&Array2::from_shape_vec((w, h), g).unwrap());
+        model_input.slice_mut(s![0, 2, .., ..]).assign(&Array2::from_shape_vec((w, h), r).unwrap());
 
         model_input /= 255.0;
 
@@ -189,7 +188,7 @@ impl YOLOv8 {
         println!("[-----------------Start Recording-----------------]");
 
         let t_pre = std::time::Instant::now();
-        let data = self.engine.pre_process(&mat)?;
+        let data = self.pre_process(&mat)?;
         let model_input = ort_2::Tensor::from_array(data)?;
         if self.profile {
             println!("[Preprocess]: {:?}", t_pre.elapsed());
@@ -246,6 +245,7 @@ impl YOLOv8 {
             Err(e) => Err(anyhow::anyhow!("Error: {:?}", e)),
         }
     }
+
 
 
     pub fn postprocess(
