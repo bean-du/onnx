@@ -1,4 +1,5 @@
-use std::sync::{Arc, Mutex};
+use std::sync::{Arc};
+use tokio::sync::Mutex;
 use anyhow::{anyhow, Error};
 use image::{DynamicImage, GenericImageView};
 use ndarray::{Array, IxDyn};
@@ -79,8 +80,7 @@ impl VideoProcessor {
 
         let video = Arc::new(Mutex::new(video));
 
-        // 创建一个 channel，缓冲区大小为 3 秒的帧数
-        let (tx_frames, mut rx_frames) = mpsc::channel(3 * fps as usize);
+        let (tx_frames, mut rx_frames) = mpsc::channel(1);
 
 
         let mut c1 = closer.resubscribe();
@@ -89,7 +89,7 @@ impl VideoProcessor {
         let video_capture_thread = tokio::spawn(async move {
             loop {
                 let mut frame = Mat::default();
-                video.lock().unwrap().read(&mut frame).unwrap();
+                video.lock().await.read(&mut frame).unwrap();
                 select! {
                     _ = c1.recv() => {
                         break;
@@ -139,7 +139,7 @@ impl VideoProcessor {
     }
 
     pub async fn process_frame(&mut self, frame: Arc<Mutex<Mat>>) -> anyhow::Result<Mat> {
-        let mut mat = frame.lock().unwrap().clone();
+        let mut mat = frame.lock().await.clone();
         let result = self.model.run_video_frame(Arc::new(mat.clone()))?;
         return Ok(result.clone());
     }

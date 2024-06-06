@@ -7,6 +7,7 @@ use ndarray::{Array2, Array4, ArrayBase, ArrayD, Ix, Ix4, OwnedRepr};
 use opencv::core::{Mat, MatTrait, MatTraitConst, MatTraitConstManual, split, Vec3b, self, NORM_MINMAX, CV_32FC1, CV_32FC3};
 use opencv::imgproc;
 use opencv::imgproc::COLOR_BGR2RGB;
+use opencv::core::get_cuda_enabled_device_count;
 use ort::{ort, Value};
 use ort::tensor::TensorData;
 use rusttype::Font;
@@ -142,7 +143,18 @@ impl YOLOv8 {
             YOLOTask::Segment | YOLOTask::Pose => imgproc::INTER_CUBIC,
             _ => imgproc::INTER_LINEAR,
         };
+
+        if get_cuda_enabled_device_count()? > 0{
+            println!("CUDA is enabled");
+        } else {
+            println!("CUDA is not enabled");
+        }
+
+
+
         let mut resized_frame = Mat::default();
+
+
 
         // resize image to 640 * 640
         imgproc::resize(
