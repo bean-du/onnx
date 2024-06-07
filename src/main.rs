@@ -1,27 +1,19 @@
-use pineal::server;
-use pineal::processor;
-use pineal::tasks;
-use pineal::yolo;
-use tokio;
-use std::sync::{Arc};
-use tokio::sync::Mutex;
-use std::any::Any;
-use std::future::Future;
-use std::ops::Deref;
-use anyhow::{anyhow, Result};
-use async_nats::jetstream;
-use opencv::{highgui, videoio, prelude::*};
-use opencv::core::Mat;
-use pineal::utils::logger;
-
-use tracing::{info, error};
-use tracing::instrument;
-use pineal::tasks::{listen_topic, mock_task, Task};
-use tokio::signal;
-use tokio::sync::mpsc;
-use pineal::processor::manager::ProcessorsManager;
-use flamegraph;
-use pineal::client::nats::get_nats_client;
+use {
+    pineal::{
+        server, processor, tasks, yolo,
+        utils::logger,
+        client::nats::get_nats_client,
+        tasks::{listen_topic, mock_task, Task},
+        processor::manager::ProcessorsManager,
+    },
+    std::{sync::{Arc}, any::Any, future::Future, ops::Deref},
+    tokio::{sync::Mutex, sync::mpsc, signal},
+    opencv::{highgui, videoio, prelude::*, core::Mat},
+    anyhow::{anyhow, Result},
+    async_nats::jetstream,
+    tracing::{info, error, instrument},
+    flamegraph,
+};
 
 
 #[tokio::main]
@@ -43,6 +35,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
 
     // test add task
+    // todo: remove this code if deploy as production
     tokio::spawn(async {
         tokio::time::sleep(tokio::time::Duration::from_secs(1)).await;
         let task = mock_task();
@@ -57,7 +50,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         kv.put(tasks::TASK_TOPIC_PREFIX.to_string(), task_str.clone().into()).await.unwrap();
         info!("Put task: {:?}", task_str);
 
-        tokio::time::sleep(tokio::time::Duration::from_secs(1)).await;
+        tokio::time::sleep(tokio::time::Duration::from_secs(180)).await;
         kv.delete(tasks::TASK_TOPIC_PREFIX.to_string()).await.unwrap();
         info!("Delete task")
     });
@@ -91,17 +84,18 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     Ok(())
 }
 
+
+// todo: implement the multiple-video stream window to show
 async fn show_frame(frame: Arc<Mutex<Mat>>) -> Result<()> {
     let window_name = "Video AI";
     highgui::named_window(window_name, highgui::WINDOW_AUTOSIZE)?;
-
-    // highgui::named_window(window_name, highgui::WINDOW_AUTOSIZE)?;
 
     let key = highgui::wait_key(1)?;
     if key > 0 && key != 255 {
         error!("Key is pressed");
         return Err(anyhow!("Key is pressed"));
     }
+
     let f = frame.lock().await;
     highgui::imshow(window_name, f.deref())?;
     Ok(())

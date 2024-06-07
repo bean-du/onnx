@@ -1,5 +1,6 @@
 use std::collections::HashMap;
 use std::sync::{Arc};
+use log::info;
 use tokio::sync::Mutex;
 use opencv::core::Mat;
 use tokio::sync::mpsc::Sender;
@@ -9,46 +10,63 @@ use crate::processor::video::{VideoProcessor};
 use crate::tasks::Task;
 
 
+// todo: save Task info to check update task
 pub struct ProcessorsManager {
     // key is the task id
     pub video_processor: Arc<RwLock<HashMap<String, VideoProcessor>>>,
+    pub tasks: Arc<RwLock<HashMap<String, Task>>>,
 }
 
 impl ProcessorsManager {
     pub fn new() -> Self {
         Self {
             video_processor: Arc::new(RwLock::new(HashMap::new())),
+            tasks: Arc::new(RwLock::new(HashMap::new())),
         }
     }
 
-    // Add a new task to the processor
-    // enable_window: whether to show the window
-    // enable_gpu: whether to use GPU
-    pub async fn add_task(&mut self, task: Task, window_tx: Option<Sender<Arc<Mutex<Mat>>>>, enable_gpu: bool) -> anyhow::Result<()> {
-        let (notify_tx, notify_rx) = broadcast::channel::<String>(1);
-        let video_processor = VideoProcessor::new(window_tx, enable_gpu, task.clone(), notify_tx)?;
 
-        // Add task to  HashMap
-        {
-            let mut vp_map = self.video_processor.write().await;
-            vp_map.insert(task.id.clone(), video_processor);
-        }
+    pub async fn create_task(&mut self, task: Task, window_tx: Option<Sender<Arc<Mutex<Mat>>>>) -> anyhow::Result<()> {
 
-        // Start a new thread to run task VideoProcessor
-        let video_processor = self.video_processor.clone();
-        tokio::spawn(async move {
-            if let Some(vp) = video_processor.write().await.get_mut(&task.id) {
-                if let Err(e) = vp.run(task, notify_rx).await {
-                    error!("Error running video processor: {}", e);
+        let tasks_guard = self.tasks.read().await;
+        let res = tasks_guard.get(&task.id);
+        match res {
+            Some(t) => {
+                // if task exists then update the task to VideoProcessor and ProcessorsManager
+                if !task.eq(&t) {
+                    self.tasks.write().await.insert(task.id.clone(), task.clone());
+                }
+                // update vp task
+                if let Some(vp) = self.video_processor.write().await.get_mut(&task.id) {
+                    vp.update_task(task);
                 }
             }
-        });
+            None => {
+                let (notify_tx, notify_rx) = broadcast::channel::<String>(1);
+                let video_processor = VideoProcessor::new(window_tx, task.clone(), notify_tx)?;
+
+                // Add task to  HashMap
+                {
+                    let mut vp_map = self.video_processor.write().await;
+                    vp_map.insert(task.id.clone(), video_processor);
+                }
+
+                // Start a new thread to run task VideoProcessor
+                let video_processor = self.video_processor.clone();
+                tokio::spawn(async move {
+                    if let Some(vp) = video_processor.write().await.get_mut(&task.id) {
+                        if let Err(e) = vp.run(task, notify_rx).await {
+                            error!("Error running video processor: {}", e);
+                        }
+                    }
+                });
+            }
+        };
 
         Ok(())
     }
 
-    // Remove a task from the processor
-    // task_id: the id of the task to be removed
+    // Remove a task from the processor manager
     pub async fn remove_task(&mut self, task_id: String) -> anyhow::Result<()> {
         // Remove task from HashMap
         let vp_option = {

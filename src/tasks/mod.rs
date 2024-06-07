@@ -62,15 +62,22 @@ impl From<TaskType> for String {
     }
 }
 
-#[derive(Debug, Serialize, Deserialize, Clone, PartialEq, Eq, PartialOrd)]
+type Confidence = f32;
+
+
+#[derive(Debug, Default, Serialize, Deserialize, Clone, PartialEq, Eq, PartialOrd)]
 pub struct Task {
     pub id: String,
     pub status: String,
     pub model_type: String,
     pub task_type: String,
-    pub addr: String,
+    pub stream_addr: String,
+    pub model_addr: String,
     pub model_info: String,
-    pub detection_interval: i32,
+    pub output_type: String,
+    pub output_addr: String,
+    pub confidence: i32,
+    pub detection_interval: u64,
 }
 
 
@@ -97,8 +104,8 @@ pub async fn listen_topic(pm: Arc<Mutex<ProcessorsManager>>, window_tx: Option<S
         match operation {
             jetstream::kv::Operation::Put => {
                 let task: Task = serde_json::from_slice(&entry.value)?;
-                debug!("Received task: {:?}", task);
-                pm.add_task(task, window_tx.clone(), false).await?
+                info!("Receive Task key: {:?}, revision: {:?}, (op: {:?}) \n Task: {:?}", key, revision, operation, task);
+                pm.create_task(task, window_tx.clone()).await?
             }
             jetstream::kv::Operation::Delete => {
                 debug!("Received Delete task: {:?}", key);
@@ -126,9 +133,11 @@ pub fn mock_task() -> Task {
         task_type: "Detect".to_string(),
         // addr: "rtsp://192.168.1.168:8554/zlm/001".to_string(),
         // addr: "rtsp://192.168.2.202:8554/zlm/001".to_string(),
-        addr: "./test/qizai.mp4".to_string(),
+        stream_addr: "./test/qizai.mp4".to_string(),
         model_info: "yolov8".to_string(),
+        output_addr: "./runs".to_string(),
         detection_interval: 1,
+        ..Default::default()
     }
 }
 

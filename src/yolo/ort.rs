@@ -92,14 +92,14 @@ pub struct OrtConfig {
 
 #[derive(Debug, Clone, Copy)]
 pub struct BoundingBox {
-    x1: f32,
-    y1: f32,
-    x2: f32,
-    y2: f32,
+    pub(crate) x1: f32,
+    pub(crate) y1: f32,
+    pub(crate) x2: f32,
+    pub(crate) y2: f32,
 }
 
 #[rustfmt::skip]
-const YOLOV8_CLASS_LABELS: [&str; 80] = [
+pub const YOLOV8_CLASS_LABELS: [&str; 80] = [
     "person", "bicycle", "car", "motorcycle", "airplane", "bus", "train", "truck", "boat", "traffic light",
     "fire hydrant", "stop sign", "parking meter", "bench", "bird", "cat", "dog", "horse", "sheep", "cow", "elephant",
     "bear", "zebra", "giraffe", "backpack", "umbrella", "handbag", "tie", "suitcase", "frisbee", "skis", "snowboard",
@@ -232,111 +232,14 @@ impl OrtBackend {
         Ok(model_input)
     }
 
-    fn intersection(&self, box1: &BoundingBox, box2: &BoundingBox) -> f32 {
+    pub fn intersection(&self, box1: &BoundingBox, box2: &BoundingBox) -> f32 {
         (box1.x2.min(box2.x2) - box1.x1.max(box2.x1)) * (box1.y2.min(box2.y2) - box1.y1.max(box2.y1))
     }
 
-    fn union(&self, box1: &BoundingBox, box2: &BoundingBox) -> f32 {
+    pub fn union(&self, box1: &BoundingBox, box2: &BoundingBox) -> f32 {
         ((box1.x2 - box1.x1) * (box1.y2 - box1.y1)) + ((box2.x2 - box2.x1) * (box2.y2 - box2.y1)) - self.intersection(box1, box2)
     }
 
-    pub fn plot(&self, results: Vec<(BoundingBox, &str, f32)>, img: &mut Mat) -> Result<Mat> {
-        let mut img = img.clone();
-        // Draw bounding boxes
-        let red_color = opencv::core::Scalar::new(0., 0., 255.0, 0.);
-        for bb in results {
-            let x = if bb.0.x1 < 0. { 0 as f32 } else { bb.0.x1  };
-            let y = if bb.0.y1 < 30. { 30  as f32} else { bb.0.y1 };
-
-            let w = bb.0.x2 - x;
-            let h = bb.0.y2 - y;
-            imgproc::rectangle(
-                &mut img,
-                opencv::core::Rect::new(
-                    x as i32, // x center
-                    y as i32, // y center
-                    w as i32,
-                    h as i32,
-                ),
-                red_color,
-                2,
-                opencv::imgproc::LINE_8,
-                0,
-            )?;
-            // put label and prob info to image
-            let text = format!("{}: {:.2}", bb.1, bb.2);
-            let point = opencv::core::Point::new(bb.0.x1 as i32, bb.0.y1 as i32);
-            imgproc::put_text(
-                &mut img,
-                &text,
-                point,
-                imgproc::INTER_LINEAR,
-                2.0,
-                opencv::core::Scalar::new(0., 255., 0., 0.),
-                2,
-                imgproc::LINE_8,
-                false,
-            )?;
-        }
-        Ok(img)
-    }
-
-    pub fn postprocess<'a>(
-        &self,
-        output: ArrayBase<OwnedRepr<f32>, Dim<IxDynImpl>>,
-        original_img_width: f32,
-        original_img_height: f32,
-        img_wh: f32,
-        accepted_prob: f32, // 0 - 1
-    ) -> Vec<(BoundingBox, &'a str, f32)> {
-        let fx = original_img_width / img_wh;
-        let fy = original_img_height / img_wh;
-
-        let mut boxes = Vec::new();
-        let output = output.slice(s![.., .., 0]);
-        for row in output.axis_iter(Axis(0)) {
-            let row: Vec<f32> = row.iter().copied().collect();
-
-            let (class_id, prob) = row
-                .iter()
-                .skip(4)
-                .enumerate()
-                .map(|(index, value)| (index, *value))
-                .reduce(|accum, row| if row.1 > accum.1 { row } else { accum })
-                .unwrap();
-
-            if prob < accepted_prob {
-                continue;
-            }
-
-            let label = YOLOV8_CLASS_LABELS[class_id];
-            let xc = row[0] * fx;
-            let yc = row[1] * fy;
-            let w = row[2] * fx;
-            let h = row[3] * fy;
-
-            boxes.push((
-                BoundingBox {
-                    x1: xc - w / 2.,
-                    y1: yc - h / 2.,
-                    x2: xc + w / 2.,
-                    y2: yc + h / 2.,
-                },
-                label,
-                prob,
-            ));
-        }
-
-        let mut bb_results = Vec::new();
-        boxes.sort_by(|box1, box2| box2.2.total_cmp(&box1.2));
-        while !boxes.is_empty() {
-            let f = boxes[0];
-            bb_results.push(f);
-            boxes.retain(|box1| self.intersection(&f.0, &box1.0) / self.union(&f.0, &box1.0) < 0.7);
-        }
-
-        bb_results
-    }
 
     pub fn names(&self) -> Option<Vec<String>> {
         // class names, metadata parsing

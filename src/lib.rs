@@ -6,3 +6,4 @@ pub mod utils;
 pub mod convert;
 pub mod stream;
 pub mod client;
+pub mod report;
