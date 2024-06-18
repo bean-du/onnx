@@ -14,6 +14,7 @@ use {
     tracing::{info, error, instrument},
     flamegraph,
 };
+use pineal::tasks::init_task;
 
 
 #[tokio::main]
@@ -35,32 +36,42 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
 
     // test add task
-    // todo: remove this code if deploy as production
-    tokio::spawn(async {
-        tokio::time::sleep(tokio::time::Duration::from_secs(1)).await;
-        let task = mock_task();
-        let task_str = serde_json::to_string(&task).unwrap();
-        // let client = async_nats::connect(DEFAULT_NATS_ADDR).await.unwrap();
-        let client = get_nats_client().await.unwrap();
-        let js = jetstream::new(client);
-        let kv = js.create_key_value(jetstream::kv::Config {
-            bucket: tasks::TASK_BUCKET.to_string(),
-            ..Default::default()
-        }).await.unwrap();
-        kv.put(tasks::TASK_TOPIC_PREFIX.to_string(), task_str.clone().into()).await.unwrap();
-        info!("Put task: {:?}", task_str);
-
-        tokio::time::sleep(tokio::time::Duration::from_secs(180)).await;
-        kv.delete(tasks::TASK_TOPIC_PREFIX.to_string()).await.unwrap();
-        info!("Delete task")
-    });
+    // // todo: remove this code if deploy as production
+    // tokio::spawn(async {
+    //     tokio::time::sleep(tokio::time::Duration::from_secs(1)).await;
+    //     let task = mock_task();
+    //     let task_str = serde_json::to_string(&task).unwrap();
+    //     // let client = async_nats::connect(DEFAULT_NATS_ADDR).await.unwrap();
+    //     let client = get_nats_client().await.unwrap();
+    //     let js = jetstream::new(client);
+    //     let kv = js.create_key_value(jetstream::kv::Config {
+    //         bucket: pineal::TASK_BUCKET.to_string(),
+    //         ..Default::default()
+    //     }).await.unwrap();
+    //
+    //     let key = format!("{}.{}", pineal::TASK_TOPIC_PREFIX, task.id);
+    //     kv.put(key.clone(), task_str.clone().into()).await.unwrap();
+    //     info!("Put task: {:?}", task_str);
+    //
+    //     tokio::time::sleep(tokio::time::Duration::from_secs(180)).await;
+    //     kv.delete(key).await.unwrap();
+    //     info!("Delete task")
+    // });
 
 
     let (tx, mut rx) = mpsc::channel::<Arc<Mutex<Mat>>>(100);
     let pm = Arc::new(Mutex::new(ProcessorsManager::new()));
+
+
+    // init_task(Arc::clone(&pm), Some(tx.clone())).await?;
+
+
     // open a new thread to listen the NATS topic
     tokio::spawn(async {
-        listen_topic(pm, Some(tx)).await.unwrap();
+        match listen_topic(pm, Some(tx)).await {
+            Ok(_) => info!("Listen topic successfully"),
+            Err(e) => error!("Listen topic failed: {:?}", e),
+        }
     });
 
     loop {

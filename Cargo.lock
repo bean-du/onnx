@@ -2026,6 +2026,7 @@ version = "0.1.0"
 dependencies = [
  "anyhow",
  "async-nats",
+ "base64 0.13.1",
  "chrono",
  "clap",
  "dirs 5.0.1",

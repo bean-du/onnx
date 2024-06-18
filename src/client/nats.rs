@@ -7,8 +7,8 @@ use opencv::core::add;
 use tokio::sync::Mutex;
 use once_cell::sync::Lazy;
 
-type NatsClient = Lazy<async_nats::Client>;
 
+// const DEFAULT_NATS_ADDR: &'static str = "nats://192.168.1.101:4222";
 const DEFAULT_NATS_ADDR: &'static str = "nats://localhost:4222";
 
 static NATS_CLIENT: Lazy<Mutex<Option<async_nats::Client>>> = Lazy::new(|| Mutex::new(None));

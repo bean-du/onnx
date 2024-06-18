@@ -27,7 +27,6 @@ impl ProcessorsManager {
 
 
     pub async fn create_task(&mut self, task: Task, window_tx: Option<Sender<Arc<Mutex<Mat>>>>) -> anyhow::Result<()> {
-
         let tasks_guard = self.tasks.read().await;
         let res = tasks_guard.get(&task.id);
         match res {

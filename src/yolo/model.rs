@@ -11,7 +11,7 @@ use opencv::core::get_cuda_enabled_device_count;
 use ort::{ort, Value};
 use ort::tensor::TensorData;
 use rusttype::Font;
-use tracing::{debug, info};
+use tracing::{debug, error, info};
 use {
     anyhow::Result,
     std::path::PathBuf,
@@ -140,6 +140,10 @@ impl YOLOv8 {
 
 
     pub fn pre_process(&self, img: &Mat) -> Result<Array<f32, IxDyn>> {
+        if img.empty() {
+            error!("get a empty image");
+            return Err(anyhow::anyhow!("Error: pre_process get a empty image"))
+        }
         let interpolation = match self.task() {
             YOLOTask::Classify => imgproc::INTER_LINEAR,
             YOLOTask::Segment | YOLOTask::Pose => imgproc::INTER_CUBIC,

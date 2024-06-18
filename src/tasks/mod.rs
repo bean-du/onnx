@@ -6,18 +6,14 @@ use anyhow::{Error, Result};
 use async_nats::connection::ShouldFlush::No;
 use tracing::{info, debug};
 use async_nats::jetstream;
+use clap::builder::Str;
 use futures::{StreamExt, TryStreamExt};
 use opencv::core::Mat;
 use tokio::sync::mpsc::Sender;
 use crate::client::nats::get_nats_client;
 use crate::processor::manager::ProcessorsManager;
-
-
-pub const TASK_BUCKET: &'static str = "IntelliBoxTaskBucket";
-
-pub const TASK_TOPIC_PREFIX: &'static str = "IntelliBox.Task.Dispatch";
-
-pub const RESULT_TOPIC_PREFIX: &'static str = "IntelliBoxInferenceReport";
+use crate::TASK_BUCKET;
+use crate::TASK_TOPIC_PREFIX;
 
 
 // TaskType is the type of the task
@@ -68,18 +64,46 @@ type Confidence = f32;
 #[derive(Debug, Default, Serialize, Deserialize, Clone, PartialEq, Eq, PartialOrd)]
 pub struct Task {
     pub id: String,
-    pub status: String,
+    // pub status: String,
     pub model_type: String,
     pub task_type: String,
     pub stream_addr: String,
     pub model_addr: String,
-    pub model_info: String,
+    pub model_info: ModelInfo,
     pub output_type: String,
     pub output_addr: String,
     pub confidence: i32,
     pub detection_interval: u64,
 }
 
+#[derive(Debug, Default, Serialize, Deserialize, Clone, PartialEq, Eq, PartialOrd)]
+pub struct ModelInfo {
+    pub inputs: String,
+    pub outputs: String,
+}
+
+pub async fn init_task(pm: Arc<Mutex<ProcessorsManager>>,window_tx: Option<Sender<Arc<Mutex<Mat>>>>) -> Result<()> {
+    let client = get_nats_client().await?;
+    let js = jetstream::new(client);
+    let kv = js.create_key_value(jetstream::kv::Config {
+        bucket: TASK_BUCKET.to_string(),
+        ..Default::default()
+    }).await?;
+
+    // Watch the task topic
+    let key = format!("{}>", TASK_TOPIC_PREFIX.to_string());
+
+    let mut pm = pm.lock().await;
+
+    let mut histories = kv.history(key).await?;
+
+    while let Some(entry) = histories.next().await {
+        println!("entry: {:?}", entry);
+    }
+
+
+    Ok(())
+}
 
 // 1. listen NATS's topic(use jetStream) and get task from NATS. save the task to the memory or database
 pub async fn listen_topic(pm: Arc<Mutex<ProcessorsManager>>, window_tx: Option<Sender<Arc<Mutex<Mat>>>>) -> Result<(), Error> {
@@ -92,8 +116,10 @@ pub async fn listen_topic(pm: Arc<Mutex<ProcessorsManager>>, window_tx: Option<S
     }).await?;
 
     // Watch the task topic
-    debug!("Watch Task Topic: {}", TASK_TOPIC_PREFIX.to_string());
-    let mut watcher = kv.watch(TASK_TOPIC_PREFIX.to_string()).await?;
+    let watch_key = format!("{}>", TASK_TOPIC_PREFIX.to_string());
+    info!("Watch Task Topic: {}", watch_key);
+
+    let mut watcher = kv.watch(watch_key).await?;
 
     while let Ok(entry) = watcher.next().await.ok_or(anyhow::anyhow!("watcher error"))? {
         let key = entry.key;
@@ -108,12 +134,12 @@ pub async fn listen_topic(pm: Arc<Mutex<ProcessorsManager>>, window_tx: Option<S
                 pm.create_task(task, window_tx.clone()).await?
             }
             jetstream::kv::Operation::Delete => {
-                debug!("Received Delete task: {:?}", key);
+                info!("Received Delete task: {:?}", key);
                 let val = key.replace(TASK_TOPIC_PREFIX, "");
                 pm.remove_task(val).await?;
             }
             jetstream::kv::Operation::Purge => {
-                debug!("Received Purge task: {:?}", key);
+                info!("Received Purge task: {:?}", key);
                 let val = key.replace(TASK_TOPIC_PREFIX, "");
                 pm.remove_task(val).await?;
             }
@@ -127,14 +153,13 @@ pub async fn listen_topic(pm: Arc<Mutex<ProcessorsManager>>, window_tx: Option<S
 
 pub fn mock_task() -> Task {
     Task {
-        id: format!("{}.{}", TASK_TOPIC_PREFIX, "1xxx".to_string()),
-        status: "running".to_string(),
+        id: format!("{}", "1xxx".to_string()),
         model_type: "yolo".to_string(),
         task_type: "Detect".to_string(),
         // addr: "rtsp://192.168.1.168:8554/zlm/001".to_string(),
         // addr: "rtsp://192.168.2.202:8554/zlm/001".to_string(),
         stream_addr: "./test/qizai.mp4".to_string(),
-        model_info: "yolov8".to_string(),
+        model_info: ModelInfo::default(),
         output_addr: "./runs".to_string(),
         detection_interval: 1,
         ..Default::default()

@@ -90,15 +90,13 @@ impl VideoProcessor {
         // Create a video writer
         let fourcc = videoio::VideoWriter::fourcc('M', 'J', 'P', 'G')?;
         let output_file = format!("{}_output.avi", task.id);
-        let is_color = true;
-        let video_writer = Some(Arc::new(Mutex::new(videoio::VideoWriter::new(&output_file, fourcc, fps, frame_size, is_color)?)));
+
+        let video_writer = Some(Arc::new(Mutex::new(videoio::VideoWriter::new(&output_file, fourcc, fps, frame_size, false)?)));
         self.video_writer = video_writer.clone();
         let mut c1 = closer.resubscribe();
         let mut c2 = closer.resubscribe();
-        let mut c3 = closer.resubscribe();
 
         let tx = self.window_tx.clone();
-
         let video = Arc::new(Mutex::new(video));
 
         let (tx_frames, mut rx_frames) = mpsc::channel(1);
@@ -107,7 +105,7 @@ impl VideoProcessor {
         let interval_clone = Arc::clone(&interval);
 
         let mut report = Report::new(get_nats_client().await?, task.detection_interval);
-        report.run(c3).await;
+        report.run(closer.resubscribe()).await;
         let report_clone = Arc::new(Mutex::new(report));
 
         // 创建一个新线程来读取视频帧并发送到 channel
@@ -155,15 +153,15 @@ impl VideoProcessor {
                                 tx.send(Arc::clone(&img)).await?;
                             }
 
-                            info!("Inference result: {:?}", res);
+                            // info!("Inference result: {:?}", res);
                             if res.len() == 0 {
                                 continue;
                             }
                             let confidence = res[0].2;
                             // report the inference result
                             let mut r = report_clone.lock().await;
-                            let rd = ReportData::new(task.id.clone(), confidence);
-                            info!("Report Inference Result: {:?}", rd);
+                            let mut rd = ReportData::new(task.id.clone(), confidence);
+                            // info!("Report Inference Result: {:?}", rd);
                             r.report(Arc::clone(&img), rd).await;
                         }
                         Err(e) => {
